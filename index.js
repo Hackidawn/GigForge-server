@@ -46,11 +46,7 @@ app.use(
 // JSON parser for normal routes
 app.use(express.json())
 
-// ✅ Friendly base page + health route
-app.get('/', (req, res) => {
-  res.status(200).send('✅ GigForge API is running. Try GET /api/health')
-})
-
+// ✅ Health route
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, env: process.env.NODE_ENV || 'unknown' })
 })
@@ -63,12 +59,10 @@ app.use('/api/messages', messageRoutes)
 app.use('/api/reviews', reviewRoutes)
 app.use('/api/admin', adminRoutes)
 
-// Fallback so hitting unknown paths returns something sensible
-app.use((req, res, next) => {
-  if (req.path === '/' || req.path === '/api') {
-    return res.status(200).send('✅ GigForge API is running. Try GET /api/health')
-  }
-  return res.status(404).json({ error: 'Not found', path: req.path })
+// ✅ Show a friendly page for any non-API GET (so "/" never says 'Cannot GET /')
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next()
+  res.status(200).send('✅ GigForge API is running. Try GET /api/health')
 })
 
 // ✅ Socket.io setup with matching CORS
