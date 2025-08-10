@@ -24,20 +24,24 @@ const PORT = process.env.PORT || 5000
 const allowedOrigins = [
   process.env.CLIENT_URL,
   ...(process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(',') : []),
-  'http://localhost:5173'
+  'http://localhost:5173',
 ].filter(Boolean)
+
+console.log('Booting GigForge API with origins:', allowedOrigins)
 
 // ✅ Stripe webhook MUST be before express.json (raw body)
 app.post('/api/orders/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook)
 
 // REST CORS
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
-    return cb(new Error(`CORS blocked for origin: ${origin}`))
-  },
-  credentials: true
-}))
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+      return cb(new Error(`CORS blocked for origin: ${origin}`))
+    },
+    credentials: true,
+  })
+)
 
 // JSON parser for normal routes
 app.use(express.json())
@@ -46,6 +50,7 @@ app.use(express.json())
 app.get('/', (req, res) => {
   res.status(200).send('✅ GigForge API is running. Try GET /api/health')
 })
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, env: process.env.NODE_ENV || 'unknown' })
 })
@@ -57,6 +62,14 @@ app.use('/api/orders', orderRoutes)
 app.use('/api/messages', messageRoutes)
 app.use('/api/reviews', reviewRoutes)
 app.use('/api/admin', adminRoutes)
+
+// Fallback so hitting unknown paths returns something sensible
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path === '/api') {
+    return res.status(200).send('✅ GigForge API is running. Try GET /api/health')
+  }
+  return res.status(404).json({ error: 'Not found', path: req.path })
+})
 
 // ✅ Socket.io setup with matching CORS
 const server = http.createServer(app)
@@ -81,10 +94,11 @@ io.on('connection', (socket) => {
 })
 
 // ✅ Connect DB and start server
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
     server.listen(PORT, () => {
       console.log('Server running on port', PORT)
     })
   })
-  .catch(err => console.error('Mongo connection error:', err))
+  .catch((err) => console.error('Mongo connection error:', err))
